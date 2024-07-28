@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Events</title>
+</head>
+<body>
+    <h1>System Events</h1>
+    <a href="{{ url_for('dashboard') }}">View Dashboard</a>
+    <a href="{{ url_for('report_csv') }}">Download CSV Report</a>
+    <a href="{{ url_for('report_pdf') }}">Download PDF Report</a>
+     <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table, th, td {
+            border: 1px solid black;
+        }
+        th, td {
+            padding: 4px; /* Reduce el padding para hacer la tabla más compacta */
+            text-align: left;
+            font-size: 12px; /* Reduce el tamaño de la fuente */
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .container {
+            width: 80%;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <form method="GET" action="/">
+            <input type="text" name="search" placeholder="Search logs">
+            <input type="submit" value="Search">
+        </form>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Message</th>
+                    <th>Facility</th>
+                    <th>Priority</th>
+                    <th>FromHost</th>
+                    <th>SysLogTag</th>
+                    <th>ReceivedAt</th>
+                    <th>DeviceReportedTime</th>
+                    <th>InfoUnitID</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for event in events %}
+                <tr>
+                    <td>{{ event.ID }}</td>
+                    <td>{{ event.Message }}</td>
+                    <td>{{ event.Facility }}</td>
+                    <td>{{ event.Priority }}</td>
+                    <td>{{ event.FromHost }}</td>
+                    <td>{{ event.SysLogTag }}</td>
+                    <td>{{ event.ReceivedAt }}</td>
+                    <td>{{ event.DeviceReportedTime }}</td>
+                    <td>{{ event.InfoUnitID }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+       
+
+    <div>
+        {% if page > 1 %}
+        <a href="{{ url_for('index', page=page-1, search=search_term) }}">Previous Page</a>
+        {% endif %}
+        <a href="{{ url_for('index', page=page+1, search=search_term) }}">Next Page</a>
+    </div>
+
+    <h2>Blocked IPs</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>IP Address</th>
+                <th>Blocked At</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ip in blocked_ips %}
+            <tr>
+                <td>{{ ip.ip_address }}</td>
+                <td>{{ ip.blocked_at }}</td>
+                <td><a href="{{ url_for('unblock', ip_address=ip.ip_address) }}">Unblock</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+</body>
+</html>

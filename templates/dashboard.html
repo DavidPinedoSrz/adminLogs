@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+</head>
+<body>
+    <h1>Dashboard</h1>
+    <h2>Number of Events per Hour</h2>
+    <img src="{{ url_for('plot', plot_type='events_per_hour') }}" alt="Events per Hour">
+    <h2>Top Suspicious IPs</h2>
+    <img src="{{ url_for('plot', plot_type='top_ips') }}" alt="Top Suspicious IPs">
+</body>
+</html>
