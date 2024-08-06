@@ -1,105 +1,87 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>System Events</title>
-</head>
-<body>
-    <h1>System Events</h1>
-    <a href="{{ url_for('dashboard') }}">View Dashboard</a>
-    <a href="{{ url_for('report_csv') }}">Download CSV Report</a>
-    <a href="{{ url_for('report_pdf') }}">Download PDF Report</a>
-     <style>
-        body {
-            font-family: Arial, sans-serif;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        table, th, td {
-            border: 1px solid black;
-        }
-        th, td {
-            padding: 4px; /* Reduce el padding para hacer la tabla más compacta */
-            text-align: left;
-            font-size: 12px; /* Reduce el tamaño de la fuente */
-        }
-        th {
-            background-color: #f2f2f2;
-        }
-        .container {
-            width: 80%;
-            margin: 0 auto;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <form method="GET" action="/">
-            <input type="text" name="search" placeholder="Search logs">
-            <input type="submit" value="Search">
-        </form>
-        <table>
+  <head>
+    <meta charset="UTF-8" author="David Pinedo Srz" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/styles.css') }}" />
+    <title>Eventos del Sistema</title>
+  </head>
+  <body>
+    <div class="wrap">
+      <!-- Inicio header -->
+      <header class="header">
+        <img class="header__fox" src="{{ url_for('static', filename='image/fox.png') }}" width="100" alt="" />
+        <!-- inicio menu de navegacion -->
+        <nav>
+          <ul class="header__navbar">
+            <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+            <li><a href="{{ url_for('report_pdf') }}">Reporte PDF</a></li>
+            <li><a href="{{ url_for('blocked_ips') }}">IP's Bloqueadas</a></li>
+          </ul>
+        </nav>
+        <!-- Fin menu de navegacion -->
+        <!-- Inicio username-img -->
+        <div class="header__username-img">
+          <img class="header__profile" src="{{ url_for('static', filename='image/usuario.jpg') }}" width="70"/>
+          <h3>Usuario: David Pinedo Srz</h3>
+        </div>
+        <!-- Fin username-img -->
+      </header>
+      <!-- Fin header -->
+      <!-- Inicio contenido -->
+      <main class="principal">
+        <!-- Inicio de Tabla Principal -->
+        <article class="principal__table">
+          <h3>Eventos del Sistema</h3>
+          <form method="GET" action="/">
+            <input type="text" name="search" placeholder="Buscar logs">
+            <input type="submit" value="Buscar">
+          </form>
+          <table>
             <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Message</th>
-                    <th>Facility</th>
-                    <th>Priority</th>
-                    <th>FromHost</th>
-                    <th>SysLogTag</th>
-                    <th>ReceivedAt</th>
-                    <th>DeviceReportedTime</th>
-                    <th>InfoUnitID</th>
-                </tr>
+              <tr>
+                
+                <th>Mensaje</th>
+                
+                <th> Host de Procedencia</th>
+                
+                <th>Recibido</th>
+                <th>Reportado por Dispositivo</th>
+                
+              </tr>
             </thead>
             <tbody>
-                {% for event in events %}
-                <tr>
-                    <td>{{ event.ID }}</td>
-                    <td>{{ event.Message }}</td>
-                    <td>{{ event.Facility }}</td>
-                    <td>{{ event.Priority }}</td>
-                    <td>{{ event.FromHost }}</td>
-                    <td>{{ event.SysLogTag }}</td>
-                    <td>{{ event.ReceivedAt }}</td>
-                    <td>{{ event.DeviceReportedTime }}</td>
-                    <td>{{ event.InfoUnitID }}</td>
-                </tr>
-                {% endfor %}
+              {% for event in events %}
+              <tr>
+                
+                <td>{{ event.Message }}</td>
+                
+                <td>{{ event.FromHost }}</td>
+                
+                <td>{{ event.ReceivedAt }}</td>
+                <td>{{ event.DeviceReportedTime }}</td>
+                
+              </tr>
+              {% endfor %}
             </tbody>
-        </table>
-
-       
-
-    <div>
-        {% if page > 1 %}
-        <a href="{{ url_for('index', page=page-1, search=search_term) }}">Previous Page</a>
-        {% endif %}
-        <a href="{{ url_for('index', page=page+1, search=search_term) }}">Next Page</a>
+          </table>
+          
+          
+          
+          <div class="pagination">
+            {% if page > 1 %}
+            <a href="{{ url_for('index', page=page-1, search=search_term) }}" class="page-link">Página Anterior</a>
+            {% endif %}
+            <a href="{{ url_for('index', page=page+1, search=search_term) }}" class="page-link">Siguiente Página</a>
+          </div>
+          
+         </article>
+        <!-- Fin de Tabla Principal -->
+      </main>
+      <footer class="footer">
+        <h3>Página hecha por Luis David Pinedo Súarez - 2024</h3>
+      </footer>
+      <!-- Fin footer -->
     </div>
-
-    <h2>Blocked IPs</h2>
-    <table>
-        <thead>
-            <tr>
-                <th>IP Address</th>
-                <th>Blocked At</th>
-                <th>Action</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for ip in blocked_ips %}
-            <tr>
-                <td>{{ ip.ip_address }}</td>
-                <td>{{ ip.blocked_at }}</td>
-                <td><a href="{{ url_for('unblock', ip_address=ip.ip_address) }}">Unblock</a></td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
-</body>
+  </body>
 </html>

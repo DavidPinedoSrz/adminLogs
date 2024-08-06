@@ -115,16 +115,6 @@ def plot(plot_type):
         buf = create_bar_plot(df, 'ip', 'count', 'Top Suspicious IPs', 'IP Address', 'Number of Events')
     return send_file(buf, mimetype='image/png')
 
-# Generar reporte en formato CSV
-@app.route('/report/csv')
-def report_csv():
-    events = get_system_events()
-    df = pd.DataFrame(events)
-    csv_data = df.to_csv(index=False)
-    response = make_response(csv_data)
-    response.headers["Content-Disposition"] = "attachment; filename=report.csv"
-    response.headers["Content-Type"] = "text/csv"
-    return response
 
 # Generar reporte en formato PDF
 @app.route('/report/pdf')
@@ -132,6 +122,12 @@ def report_pdf():
     events = get_system_events()
     html = render_template('report.html', events=events)
     return render_pdf(HTML(string=html))
+
+@app.route('/blocked_ips')
+def blocked_ips():
+    blocked_ips = get_blocked_ips()
+    return render_template('blockedIp.html', blocked_ips=blocked_ips)
+
 
 # Ruta principal
 @app.route('/')

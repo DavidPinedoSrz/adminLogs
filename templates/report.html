@@ -4,63 +4,64 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Report</title>
-</head>
-<div>
-    <h1>System Events Report</h1>
     <style>
+        @page {
+            size: A4;
+            margin: 1mm; /* Ajusta el margen de la página */
+        }
         body {
             font-family: Arial, sans-serif;
+            font-size: 10px; /* Reduce el tamaño de la fuente */
         }
         table {
-            width: 100%;
+            width: 105%;
             border-collapse: collapse;
         }
         table, th, td {
             border: 1px solid black;
         }
         th, td {
-            padding: 4px; /* Reduce el padding para hacer la tabla más compacta */
+            padding: 2px; /* Reduce aún más el padding */
             text-align: left;
-            font-size: 12px; /* Reduce el tamaño de la fuente */
         }
         th {
             background-color: #f2f2f2;
         }
         .container {
             width: 100%;
-            text-align: left;
             margin: 0 auto;
         }
     </style>
+</head>
+<body>
     <div class="container">
-        <table border="1">
-        <tr>
-            <th>ID</th>
-            <th>Message</th>
-            <th>Facility</th>
-            <th>Priority</th>
-            <th>FromHost</th>
-            <th>SysLogTag</th>
-            <th>ReceivedAt</th>
-            <th>DeviceReportedTime</th>
-            <th>InfoUnitID</th>
-        </tr>
-        {% for event in events %}
-        <tr>
-            <td>{{ event.ID }}</td>
-            <td>{{ event.Message }}</td>
-            <td>{{ event.Facility }}</td>
-            <td>{{ event.Priority }}</td>
-            <td>{{ event.FromHost }}</td>
-            <td>{{ event.SysLogTag }}</td>
-            <td>{{ event.ReceivedAt }}</td>
-            <td>{{ event.DeviceReportedTime }}</td>
-            <td>{{ event.InfoUnitID }}</td>
-        </tr>
-        {% endfor %}
-       </table>
-      </div>
-      
-    
+        <h1>System Events Report</h1>
+        <table>
+            <tr>
+                <th>ID</th>
+                <th>Message</th>
+                <th>Facility</th>
+                <th>Priority</th>
+                <th>FromHost</th>
+                <th>SysLogTag</th>
+                <th>ReceivedAt</th>
+                <th>DeviceReportedTime</th>
+                <th>InfoUnitID</th>
+            </tr>
+            {% for event in events %}
+            <tr>
+                <td>{{ event.ID }}</td>
+                <td>{{ event.Message }}</td>
+                <td>{{ event.Facility }}</td>
+                <td>{{ event.Priority }}</td>
+                <td>{{ event.FromHost }}</td>
+                <td>{{ event.SysLogTag }}</td>
+                <td>{{ event.ReceivedAt }}</td>
+                <td>{{ event.DeviceReportedTime }}</td>
+                <td>{{ event.InfoUnitID }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
 </body>
 </html>
