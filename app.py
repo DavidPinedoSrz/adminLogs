@@ -6,7 +6,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from io import BytesIO
 from flask_weasyprint import HTML, render_pdf
-from flask import make_response
+import threading
+import time
+import re
+import socket
 
 app = Flask(__name__)
 
@@ -17,6 +20,67 @@ db_config = {
     'host': 'localhost',
     'database': 'logServer'
 }
+
+# Palabras clave y frases específicas
+malicious_keywords = ["failed login", "unauthorized access", "DDoS attack", "port scan"]
+
+# Detectar palabras clave en los mensajes
+def detect_keyword_events():
+    connection = mysql.connector.connect(**db_config)
+    cursor = connection.cursor(dictionary=True)
+    query = """
+        SELECT FromHost as ip, COUNT(*) as count
+        FROM SystemEvents
+        WHERE {}
+        GROUP BY FromHost
+    """.format(' OR '.join([f"Message LIKE %s" for _ in malicious_keywords]))
+    params = [f'%{keyword}%' for keyword in malicious_keywords]
+    cursor.execute(query, params)
+    results = cursor.fetchall()
+    cursor.close()
+    connection.close()
+    return pd.DataFrame(results)
+
+# Detectar alta frecuencia de eventos
+def detect_high_frequency_events(threshold=100, period='1 HOUR'):
+    connection = mysql.connector.connect(**db_config)
+    cursor = connection.cursor(dictionary=True)
+    query = """
+        SELECT FromHost as ip, COUNT(*) as count
+        FROM SystemEvents
+        WHERE ReceivedAt >= NOW() - INTERVAL {}
+        GROUP BY FromHost
+        HAVING COUNT(*) > %s
+    """.format(period)
+    cursor.execute(query, (threshold,))
+    results = cursor.fetchall()
+    cursor.close()
+    connection.close()
+    return pd.DataFrame(results)
+
+# Función para analizar y bloquear IPs maliciosas
+def analyze_and_block_suspicious_ips():
+    server_ip = "192.168.1.102"
+    suspicious_ips = pd.concat([
+        detect_keyword_events(),
+        detect_high_frequency_events()
+    ])
+    
+    for ip_address in suspicious_ips['ip'].unique():
+        if ip_address != server_ip:
+            block_device(ip_address)
+        else:
+            print(f"Omitiendo el bloqueo de la IP del servidor: {ip_address}")
+
+# Llamar a esta función periódicamente
+def periodic_ip_check(interval=3600):
+    while True:
+        analyze_and_block_suspicious_ips()
+        time.sleep(interval)
+
+# Iniciar el chequeo periódico en un hilo separado
+thread = threading.Thread(target=periodic_ip_check)
+thread.start()
 
 # Conectar a la base de datos y obtener los eventos del sistema con o sin filtro de búsqueda
 def get_system_events(search_term=None, page=1, per_page=100):
@@ -34,29 +98,58 @@ def get_system_events(search_term=None, page=1, per_page=100):
     connection.close()
     return results
 
-# Obtener IPs bloqueadas
-def get_blocked_ips():
+# Función para bloquear una dirección IP
+def block_device(ip_address):
+    print(f"Bloqueando IP: {ip_address}")
+    try:
+        command = f"sudo iptables -A INPUT -s {ip_address} -j DROP"
+        subprocess.run(command, shell=True, check=True)
+        
+        # Guardar la IP bloqueada en la base de datos
+        connection = mysql.connector.connect(**db_config)
+        cursor = connection.cursor()
+        insert_query = "INSERT INTO BlockedDevices (ip_address, blocked_at) VALUES (%s, NOW())"
+        cursor.execute(insert_query, (ip_address,))
+        connection.commit()
+        cursor.close()
+        connection.close()
+    except subprocess.CalledProcessError as e:
+        print(f"Error al ejecutar el comando iptables: {e}")
+
+    # Agregar una regla para registrar los paquetes bloqueados
+    try:
+        command = f"sudo iptables -I INPUT 1 -s {ip_address} -j LOG --log-prefix 'IP BLOCKED: '"
+        subprocess.run(command, shell=True, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Error al agregar la regla de registro en iptables: {e}")
+
+# Función para desbloquear una dirección IP
+def unblock_device(ip_address):
+    try:
+        command = f"sudo iptables -D INPUT -s {ip_address} -j DROP"
+        subprocess.run(command, shell=True, check=True)
+        
+        # Eliminar la IP bloqueada de la base de datos
+        connection = mysql.connector.connect(**db_config)
+        cursor = connection.cursor()
+        delete_query = "DELETE FROM BlockedDevices WHERE ip_address = %s"
+        cursor.execute(delete_query, (ip_address,))
+        connection.commit()
+        cursor.close()
+        connection.close()
+    except subprocess.CalledProcessError as e:
+        print(f"Error al desbloquear la IP: {e}")
+
+# Función para obtener todos los dispositivos bloqueados
+def get_blocked_devices():
     connection = mysql.connector.connect(**db_config)
     cursor = connection.cursor(dictionary=True)
-    query = "SELECT * FROM BlockedIPs"
+    query = "SELECT * FROM BlockedDevices"
     cursor.execute(query)
     results = cursor.fetchall()
     cursor.close()
     connection.close()
     return results
-
-# Desbloquear una IP
-def unblock_ip(ip_address):
-    command = f"sudo iptables -D INPUT -s {ip_address} -j DROP"
-    subprocess.run(command, shell=True, check=True)
-    # Eliminar la IP bloqueada de la base de datos
-    connection = mysql.connector.connect(**db_config)
-    cursor = connection.cursor()
-    delete_query = "DELETE FROM BlockedIPs WHERE ip_address = %s"
-    cursor.execute(delete_query, (ip_address,))
-    connection.commit()
-    cursor.close()
-    connection.close()
 
 # Obtener estadísticas de eventos por hora
 def get_events_per_hour():
@@ -104,46 +197,53 @@ def create_bar_plot(df, x, y, title, xlabel, ylabel):
     buf.seek(0)
     return buf
 
-# Ruta para gráficos
-@app.route('/plot/<plot_type>')
-def plot(plot_type):
-    if plot_type == 'events_per_hour':
-        df = get_events_per_hour()
-        buf = create_bar_plot(df, 'hour', 'count', 'Number of Events per Hour', 'Hour', 'Number of Events')
-    elif plot_type == 'top_ips':
-        df = get_top_suspicious_ips()
-        buf = create_bar_plot(df, 'ip', 'count', 'Top Suspicious IPs', 'IP Address', 'Number of Events')
-    return send_file(buf, mimetype='image/png')
-
-
-# Generar reporte en formato PDF
-@app.route('/report/pdf')
-def report_pdf():
-    events = get_system_events()
-    html = render_template('report.html', events=events)
-    return render_pdf(HTML(string=html))
-
-@app.route('/blocked_ips')
-def blocked_ips():
-    blocked_ips = get_blocked_ips()
-    return render_template('blockedIp.html', blocked_ips=blocked_ips)
-
-
-# Ruta principal
+# Ruta principal para mostrar eventos del sistema
 @app.route('/')
 def index():
+    page = request.args.get('page', 1, type=int)
     search_term = request.args.get('search')
-    page = request.args.get('page', default=1, type=int)
     events = get_system_events(search_term, page)
-    blocked_ips = get_blocked_ips()
-    return render_template('index.html', events=events, blocked_ips=blocked_ips, page=page, search_term=search_term)
+    return render_template('index.html', events=events, page=page, search_term=search_term)
 
+# Ruta para mostrar dispositivos bloqueados
+@app.route('/blocked_devices')
+def blocked_devices():
+    devices = get_blocked_devices()
+    return render_template('blockedDevices.html', devices=devices)
 
-# Ruta para desbloquear una IP
-@app.route('/unblock/<ip_address>')
-def unblock(ip_address):
-    unblock_ip(ip_address)
-    return redirect(url_for('index'))
+# Ruta para desbloquear un dispositivo
+@app.route('/unblock_device', methods=['POST'])
+def unblock():
+    ip_address = request.form.get('ip_address')
+    unblock_device(ip_address)
+    return redirect(url_for('blocked_devices'))
+
+# Ruta para generar y descargar reportes en PDF
+@app.route('/report_pdf')
+def report_pdf():
+    page = request.args.get('page', 1, type=int)
+    search_term = request.args.get('search')
+    events = get_system_events(search_term, page)
+    html = render_template('report_template.html', events=events)
+    return render_pdf(HTML(string=html))
+
+# Añadir host al archivo /etc/hosts
+def add_host(ip_address, hostname):
+    try:
+        subprocess.run(['sudo', '/home/foxhound/Code/adminLogs/add_to_hosts.py', ip_address, hostname], check=True)
+        return "Añadido con éxito."
+    except subprocess.CalledProcessError as e:
+        return f"Error al añadir: {e}"
+
+# Ruta para mostrar el formulario de añadir host
+@app.route('/add_host', methods=['GET', 'POST'])
+def add_host_route():
+    if request.method == 'POST':
+        ip_address = request.form['ip_address']
+        hostname = request.form['hostname']
+        result = add_host(ip_address, hostname)
+        return render_template('add_host_result.html', result=result)
+    return render_template('add_host.html')
 
 if __name__ == '__main__':
     app.run(debug=True)

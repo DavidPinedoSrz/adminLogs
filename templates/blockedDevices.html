@@ -4,32 +4,34 @@
     <meta charset="UTF-8" author="David Pinedo Srz" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/styles.css') }}" />
-    <title>IP's Bloqueadas</title>
-  </head>
-  <body>
+    <title>Dispositivos Bloqueados</title>
+</head>
+<body>
     <div class="wrap">
-        <div class="blockedIps">
-            <h2>IP's Bloqueadas</h2>
+        <div class="blockedDevices">
+            <h2>Dispositivos Bloqueados</h2>
             <br>
             <table>
               <thead>
                 <tr>
                   <th>IP Address</th>
+                  <th>MAC Address</th>
                   <th>Blocked At</th>
                   <th>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {% for ip in blocked_ips %}
+                {% for device in devices %}
                 <tr>
-                  <td>{{ ip.ip_address }}</td>
-                  <td>{{ ip.blocked_at }}</td>
-                  <td><a href="{{ url_for('unblock', ip_address=ip.ip_address) }}">Unblock</a></td>
+                  <td>{{ device.ip_address }}</td>
+                  <td>{{ device.mac_address }}</td>
+                  <td>{{ device.blocked_at }}</td>
+                  <td><a href="/unblock/{{ device.ip_address }}">Unblock</a></td>
                 </tr>
                 {% endfor %}
               </tbody>
             </table>
           </div> 
     </div>
-  </body>
+</body>
 </html>
