@@ -4,6 +4,7 @@ import subprocess
 import threading
 import time
 import socket
+from flask_weasyprint import HTML, render_pdf
 
 app = Flask(__name__)
 
@@ -28,7 +29,7 @@ def detect_keyword_events():
             SELECT FromHost, Message
             FROM SystemEvents
             ORDER BY ReceivedAt DESC
-            LIMIT 2
+            LIMIT 10
         ) as recent_events
         WHERE {}
         GROUP BY FromHost
@@ -67,7 +68,7 @@ def analyze_and_block_suspicious_ips():
             print(f"Omitiendo el bloqueo de la IP del servidor: {ip_address}")
 
 # Llamar a esta función periódicamente
-def periodic_ip_check(interval=2):  # Cambiado a 2 segundos para pruebas
+def periodic_ip_check(interval=30):  # Cambiado a 30 segundos para pruebas
     while True:
         analyze_and_block_suspicious_ips()
         time.sleep(interval)
@@ -126,6 +127,7 @@ def unblock_device(ip_address):
         connection.commit()
         cursor.close()
         connection.close()
+        print(f"IP desbloqueada: {ip_address}")
     except subprocess.CalledProcessError as e:
         print(f"Error al desbloquear la IP: {e}")
 
@@ -194,12 +196,19 @@ def blocked_devices():
     devices = get_blocked_devices()
     return render_template('blockedDevices.html', devices=devices)
 
-# Ruta para desbloquear un dispositivo
+# Ruta para manejar el desbloqueo de dispositivos
 @app.route('/unblock_device', methods=['POST'])
 def unblock():
     ip_address = request.form.get('ip_address')
     unblock_device(ip_address)
     return redirect(url_for('blocked_devices'))
+
+# Generar reporte en formato PDF
+@app.route('/report_pdf')
+def report_pdf():
+    events = get_system_events()
+    html = render_template('report.html', events=events)
+    return render_pdf(HTML(string=html))
 
 # Añadir host al archivo /etc/hosts
 def add_host(ip_address, hostname):

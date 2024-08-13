@@ -99,7 +99,7 @@ input[type="text"] {
 
 input[type="submit"] {
   width: 100%;
-  background-color: #5cb85c;
+  background-color: #12203E;
   color: white;
   padding: 10px;
   margin: 10px 0;
@@ -124,7 +124,7 @@ table {
 }
 
 thead {
-  background-color: #5cb85c;
+  background-color: #12203E;
   color: white;
 }
 

@@ -15,7 +15,6 @@
               <thead>
                 <tr>
                   <th>IP Address</th>
-                  <th>MAC Address</th>
                   <th>Blocked At</th>
                   <th>Action</th>
                 </tr>
@@ -24,9 +23,13 @@
                 {% for device in devices %}
                 <tr>
                   <td>{{ device.ip_address }}</td>
-                  <td>{{ device.mac_address }}</td>
                   <td>{{ device.blocked_at }}</td>
-                  <td><a href="/unblock/{{ device.ip_address }}">Unblock</a></td>
+                  <td>
+                    <form action="{{ url_for('unblock') }}" method="post">
+                      <input type="hidden" name="ip_address" value="{{ device.ip_address }}">
+                       <button type="submit">Desbloquear</button>
+                     </form>
+                   </td>
                 </tr>
                 {% endfor %}
               </tbody>

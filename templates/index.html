@@ -41,27 +41,27 @@
           <table>
             <thead>
               <tr>
-                
-                <th>Mensaje</th>
-                
-                <th> Host de Procedencia</th>
-                
-                <th>Recibido</th>
-                <th>Reportado por Dispositivo</th>
-                
+                <th>Message</th>
+                <th>Facility</th>
+                <th>Priority</th>
+                <th>FromHost</th>
+                <th>SysLogTag</th>
+                <th>ReceivedAt</th>
+                <th>DeviceReportedTime</th>
+                <th>InfoUnitID</th>
               </tr>
             </thead>
             <tbody>
               {% for event in events %}
               <tr>
-                
                 <td>{{ event.Message }}</td>
-                
+                <td>{{ event.Facility }}</td>
+                <td>{{ event.Priority }}</td>
                 <td>{{ event.FromHost }}</td>
-                
+                <td>{{ event.SysLogTag }}</td>
                 <td>{{ event.ReceivedAt }}</td>
                 <td>{{ event.DeviceReportedTime }}</td>
-                
+                <td>{{ event.InfoUnitID }}</td>
               </tr>
               {% endfor %}
             </tbody>
