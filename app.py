@@ -16,12 +16,49 @@ db_config = {
     'database': 'logServer'
 }
 
+# Declaraciòn de palabras maliciosas
+malicious_keywords = [
+    "nmap", "sqlmap", "hydra", "bruteforce", "metasploit", "exploit", 
+    "recon", "dirb", "nikto", "burpsuite", "xsser", "john", 
+    "aircrack-ng", "tcpdump", "ettercap", "hping", "netcat", 
+    "malware", "shellcode", "backdoor", "reverse_shell", "payload", 
+    "privilege_escalation", "ddos", "Masscan", "SYN scan", "Port scan", 
+    "spoofing", "Root access", "exfiltration", "DDoS", "XSS", "CSRF", "RCE"
+]
+
+
+# Detectar alta frecuencia de eventos
+def detect_high_frequency_events(threshold=100, period='1 MINUTE'): # Màs de 100 eventos en el ùltimo minuto
+    connection = mysql.connector.connect(**db_config)
+    cursor = connection.cursor(dictionary=True)
+    query = """
+        SELECT FromHost as host, COUNT(*) as count
+        FROM SystemEvents
+        WHERE ReceivedAt >= NOW() - INTERVAL {}
+        GROUP BY FromHost
+        HAVING COUNT(*) > %s
+    """.format(period)
+    cursor.execute(query, (threshold,))
+    results = cursor.fetchall()
+    cursor.close()
+    connection.close()
+    
+    # Convertir nombres de host a direcciones ip
+    ip_addresses = []
+    for result in results:
+        host = result['host']
+        try:
+            ip = socket.gethostbyname(host)
+            ip_addresses.append(ip)
+        except socket.error:
+            print(f"Error al resolver el nombre de host: {host}")
+    
+    return ip_addresses
+
 # Detectar palabras clave en los mensajes
 def detect_keyword_events():
     connection = mysql.connector.connect(**db_config)
     cursor = connection.cursor(dictionary=True)
-    
-    malicious_keywords = ["nmap"]
     
     query = """
         SELECT FromHost as host, COUNT(*) as count
@@ -44,7 +81,7 @@ def detect_keyword_events():
     cursor.close()
     connection.close()
     
-    # Convertir nombres de host a direcciones IP
+    # Convertir nombres de host a direcciones ip
     ip_addresses = []
     for result in results:
         host = result['host']
@@ -60,15 +97,19 @@ def detect_keyword_events():
 def analyze_and_block_suspicious_ips():
     server_ip = "192.168.1.102"
     suspicious_ips = detect_keyword_events()
-    
-    for ip_address in suspicious_ips:
+    high_frequency_ips = detect_high_frequency_events()
+
+    # Combinar las IPs sospechosas detectadas por palabras clave y alta frecuencia de eventos
+    all_suspicious_ips = set(suspicious_ips + high_frequency_ips)
+
+    for ip_address in all_suspicious_ips:
         if ip_address != server_ip:
             block_device(ip_address)
         else:
             print(f"Omitiendo el bloqueo de la IP del servidor: {ip_address}")
 
 # Llamar a esta función periódicamente
-def periodic_ip_check(interval=30):  # Cambiado a 30 segundos para pruebas
+def periodic_ip_check(interval=30): # Cada 30 segundos
     while True:
         analyze_and_block_suspicious_ips()
         time.sleep(interval)
@@ -100,11 +141,9 @@ def block_device(ip_address):
         command = f"sudo iptables -A INPUT -s {ip_address} -j DROP"
         subprocess.run(command, shell=True, check=True)
         
-        # Guardar la IP bloqueada en la base de datos
         connection = mysql.connector.connect(**db_config)
         cursor = connection.cursor()
         insert_query = "INSERT INTO BlockedDevices (ip_address, blocked_at) VALUES (%s, NOW())"
-        print(f"Añadida a tabla de bloqueos IP: {ip_address}")
         cursor.execute(insert_query, (ip_address,))
         connection.commit()
         cursor.close()
@@ -119,7 +158,6 @@ def unblock_device(ip_address):
         command = f"sudo iptables -D INPUT -s {ip_address} -j DROP"
         subprocess.run(command, shell=True, check=True)
         
-        # Eliminar la IP bloqueada de la base de datos
         connection = mysql.connector.connect(**db_config)
         cursor = connection.cursor()
         delete_query = "DELETE FROM BlockedDevices WHERE ip_address = %s"
