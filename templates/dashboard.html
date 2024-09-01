@@ -3,13 +3,82 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard</title>
+    <title>Dashboard - Eventos del Sistema</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-    <h1>Dashboard</h1>
-    <h2>Number of Events per Hour</h2>
-    <img src="{{ url_for('plot', plot_type='events_per_hour') }}" alt="Events per Hour">
-    <h2>Top Suspicious IPs</h2>
-    <img src="{{ url_for('plot', plot_type='top_ips') }}" alt="Top Suspicious IPs">
+    <h1>Dashboard de Eventos del Sistema</h1>
+
+    <!-- Gráfico de Barras: Eventos por Hora -->
+    <div>
+        <h3>Eventos por Hora</h3>
+        <canvas id="eventsPerHourChart"></canvas>
+    </div>
+
+    <!-- Gráfico de Pie: Top 10 IPs Sospechosas -->
+    <div>
+        <h3>Top 10 IPs Sospechosas</h3>
+        <canvas id="topSuspiciousIPsChart"></canvas>
+    </div>
+
+    <script>
+        // Datos para el gráfico de barras de eventos por hora
+        const eventsPerHourLabels = {{ events_per_hour | tojson }};
+        const eventsPerHourData = {{ events_count | tojson }};
+
+        const ctx1 = document.getElementById('eventsPerHourChart').getContext('2d');
+        new Chart(ctx1, {
+            type: 'bar',
+            data: {
+                labels: eventsPerHourLabels,
+                datasets: [{
+                    label: '# de Eventos',
+                    data: eventsPerHourData,
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        // Datos para el gráfico de pie de top 10 IPs sospechosas
+        const topIPsLabels = {{ top_ips | tojson }};
+        const topIPsData = {{ top_ips_count | tojson }};
+
+        const ctx2 = document.getElementById('topSuspiciousIPsChart').getContext('2d');
+        new Chart(ctx2, {
+            type: 'pie',
+            data: {
+                labels: topIPsLabels,
+                datasets: [{
+                    data: topIPsData,
+                    backgroundColor: [
+                        'rgba(255, 99, 132, 0.5)',
+                        'rgba(54, 162, 235, 0.5)',
+                        'rgba(255, 206, 86, 0.5)',
+                        'rgba(75, 192, 192, 0.5)',
+                        'rgba(153, 102, 255, 0.5)',
+                        'rgba(255, 159, 64, 0.5)'
+                    ],
+                    borderColor: [
+                        'rgba(255, 99, 132, 1)',
+                        'rgba(54, 162, 235, 1)',
+                        'rgba(255, 206, 86, 1)',
+                        'rgba(75, 192, 192, 1)',
+                        'rgba(153, 102, 255, 1)',
+                        'rgba(255, 159, 64, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            }
+        });
+    </script>
 </body>
 </html>

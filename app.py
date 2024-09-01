@@ -216,9 +216,24 @@ def get_top_suspicious_ips():
 # Ruta para el dashboard
 @app.route('/dashboard')
 def dashboard():
+    # Obtener datos para el gráfico de eventos por hora
     events_per_hour = get_events_per_hour()
+    events_per_hour_labels = [event['hour'] for event in events_per_hour]
+    events_per_hour_counts = [event['count'] for event in events_per_hour]
+    
+    # Obtener datos para el gráfico de top IPs sospechosas
     top_ips = get_top_suspicious_ips()
-    return render_template('dashboard.html', events_per_hour=events_per_hour, top_ips=top_ips)
+    top_ips_labels = [ip['ip'] for ip in top_ips]
+    top_ips_counts = [ip['count'] for ip in top_ips]
+    
+    return render_template(
+        'dashboard.html',
+        events_per_hour=events_per_hour_labels,
+        events_count=events_per_hour_counts,
+        top_ips=top_ips_labels,
+        top_ips_count=top_ips_counts
+    )
+
 
 # Ruta principal para mostrar eventos del sistema
 @app.route('/')
