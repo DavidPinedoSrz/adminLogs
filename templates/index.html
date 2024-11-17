@@ -8,81 +8,100 @@
   </head>
   <body>
     <div class="wrap">
-      <!-- Inicio header -->
       <header class="header">
         <img class="header__fox" src="{{ url_for('static', filename='image/fox.png') }}" width="100" alt="" />
-        <!-- inicio menu de navegacion -->
         <nav>
           <ul class="header__navbar">
-            <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+            <li><a href="{{ url_for('dashboard') }}">Gràficas</a></li>
             <li><a href="{{ url_for('report_pdf') }}">Reporte PDF</a></li>
             <li><a href="{{ url_for('blocked_devices') }}">IP's Bloqueadas</a></li>
             <li><a href="{{ url_for('add_host_route') }}">Registrar Host's</a></li>
           </ul>
         </nav>
-        <!-- Fin menu de navegacion -->
-        <!-- Inicio username-img -->
         <div class="header__username-img">
           <img class="header__profile" src="{{ url_for('static', filename='image/usuario.jpg') }}" width="70"/>
           <h3>Usuario: David Pinedo Srz</h3>
         </div>
-        <!-- Fin username-img -->
       </header>
-      <!-- Fin header -->
-      <!-- Inicio contenido -->
       <main class="principal">
-        <!-- Inicio de Tabla Principal -->
         <article class="principal__table">
           <h3>Eventos del Sistema</h3>
           <form method="GET" action="/">
             <input type="text" name="search" placeholder="Buscar logs">
             <input type="submit" value="Buscar">
           </form>
-          <table>
-            <thead>
-              <tr>
-                <th>Message</th>
-                <th>Facility</th>
-                <th>Priority</th>
-                <th>FromHost</th>
-                <th>SysLogTag</th>
-                <th>ReceivedAt</th>
-                <th>DeviceReportedTime</th>
-                <th>InfoUnitID</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for event in events %}
-              <tr>
-                <td>{{ event.Message }}</td>
-                <td>{{ event.Facility }}</td>
-                <td>{{ event.Priority }}</td>
-                <td>{{ event.FromHost }}</td>
-                <td>{{ event.SysLogTag }}</td>
-                <td>{{ event.ReceivedAt }}</td>
-                <td>{{ event.DeviceReportedTime }}</td>
-                <td>{{ event.InfoUnitID }}</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-          
-          
-          
+          <div id="events-table">
+            <!-- La tabla de eventos se insertará aquí -->
           <div class="pagination">
-            {% if page > 1 %}
-            <a href="{{ url_for('index', page=page-1, search=search_term) }}" class="page-link">Página Anterior</a>
-            {% endif %}
-            <a href="{{ url_for('index', page=page+1, search=search_term) }}" class="page-link">Siguiente Página</a>
-          </div>
-          
-         </article>
-        <!-- Fin de Tabla Principal -->
+              {% if page > 1 %}
+              <a href="{{ url_for('index', page=page-1, search=search_term) }}" class="page-link">Página Anterior</a>
+              {% endif %}
+              <a href="{{ url_for('index', page=page+1, search=search_term) }}" class="page-link">Siguiente Página</a>
+           </div>
+        </article>
       </main>
       <footer class="footer">
-        <h3>Página de Administrador de Log's C.A. de C.V. - 2024</h3>
+        <h3>Página de Administrador de Log's S.A. de C.V. - 2024</h3>
       </footer>
-      <!-- Fin footer -->
     </div>
+
+    <script>
+      // Función para actualizar la tabla con los eventos nuevos
+      function updateEventTable() {
+        const page = new URLSearchParams(window.location.search).get('page') || 1;
+        fetch(`/get_events?page=${page}`)
+          .then(response => response.json())
+          .then(data => {
+            const tableContent = data.events.map(event => `
+              <tr>
+                <td>${event.Message}</td>
+                <td>${event.Facility}</td>
+                <td>${event.Priority}</td>
+                <td>${event.FromHost}</td>
+                <td>${event.SysLogTag}</td>
+                <td>${event.ReceivedAt}</td>
+                <td>${event.DeviceReportedTime}</td>
+                <td>${event.InfoUnitID}</td>
+              </tr>
+            `).join('');
+            document.getElementById('events-table').innerHTML = `
+              <table>
+                <thead>
+                  <tr>
+                    <th>Message</th>
+                    <th>Facility</th>
+                    <th>Priority</th>
+                    <th>FromHost</th>
+                    <th>SysLogTag</th>
+                    <th>ReceivedAt</th>
+                    <th>DeviceReportedTime</th>
+                    <th>InfoUnitID</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${tableContent}
+                </tbody>
+              </table>
+            `;
+          });
+      }
+
+      // Actualizar cada 30 segundos
+      setInterval(updateEventTable, 30000);
+      updateEventTable(); // Actualizar inmediatamente al cargar la página
+
+      // EventSource para escuchar eventos de alta frecuencia
+      const eventSource = new EventSource('/periodic_ip_check');
+      eventSource.onmessage = function (event) {
+        const ipAddress = event.data;
+        if (confirm(`¿Deseas bloquear la IP ${ipAddress}?`)) {
+          fetch('/block_device', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ ip_address: ipAddress }),
+          }).then(response => location.reload());
+        }
+      };
+    </script>
   </body>
 </html>

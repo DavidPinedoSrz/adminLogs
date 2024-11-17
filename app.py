@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, jsonify, Response
 import mysql.connector
 import subprocess
 import threading
@@ -16,19 +16,8 @@ db_config = {
     'database': 'logServer'
 }
 
-# Declaraciòn de palabras maliciosas
-malicious_keywords = [
-    "nmap", "sqlmap", "hydra", "bruteforce", "metasploit", "exploit", 
-    "recon", "dirb", "nikto", "burpsuite", "xsser", "john", 
-    "aircrack-ng", "tcpdump", "ettercap", "hping", "netcat", 
-    "malware", "shellcode", "backdoor", "reverse_shell", "payload", 
-    "privilege_escalation", "ddos", "Masscan", "SYN scan", "Port scan", 
-    "spoofing", "Root access", "exfiltration", "DDoS", "XSS", "CSRF", "RCE"
-]
-
-
 # Detectar alta frecuencia de eventos
-def detect_high_frequency_events(threshold=100, period='1 MINUTE'): # Màs de 100 eventos en el ùltimo minuto
+def detect_high_frequency_events(threshold=100, period='1 MINUTE'):  # Más de 100 eventos en el último minuto
     connection = mysql.connector.connect(**db_config)
     cursor = connection.cursor(dictionary=True)
     query = """
@@ -43,45 +32,7 @@ def detect_high_frequency_events(threshold=100, period='1 MINUTE'): # Màs de 10
     cursor.close()
     connection.close()
     
-    # Convertir nombres de host a direcciones ip
-    ip_addresses = []
-    for result in results:
-        host = result['host']
-        try:
-            ip = socket.gethostbyname(host)
-            ip_addresses.append(ip)
-        except socket.error:
-            print(f"Error al resolver el nombre de host: {host}")
-    
-    return ip_addresses
-
-# Detectar palabras clave en los mensajes
-def detect_keyword_events():
-    connection = mysql.connector.connect(**db_config)
-    cursor = connection.cursor(dictionary=True)
-    
-    query = """
-        SELECT FromHost as host, COUNT(*) as count
-        FROM (
-            SELECT FromHost, Message
-            FROM SystemEvents
-            ORDER BY ReceivedAt DESC
-            LIMIT 10
-        ) as recent_events
-        WHERE {}
-        GROUP BY FromHost
-    """.format(' OR '.join([f"Message LIKE %s" for _ in malicious_keywords]))
-    params = [f'%{keyword}%' for keyword in malicious_keywords]
-    print(f"Consulta SQL: {query}")
-    print(f"Parámetros: {params}")
-    cursor.execute(query, params)
-    
-    results = cursor.fetchall()
-    print(f"Resultados de la consulta: {results}")
-    cursor.close()
-    connection.close()
-    
-    # Convertir nombres de host a direcciones ip
+    # Convertir nombres de host a direcciones IP
     ip_addresses = []
     for result in results:
         host = result['host']
@@ -95,30 +46,35 @@ def detect_keyword_events():
 
 # Función para analizar y bloquear IPs maliciosas
 def analyze_and_block_suspicious_ips():
-    server_ip = "192.168.1.102"
-    suspicious_ips = detect_keyword_events()
-    high_frequency_ips = detect_high_frequency_events()
+    suspicious_ips = detect_high_frequency_events()
 
-    # Combinar las IPs sospechosas detectadas por palabras clave y alta frecuencia de eventos
-    all_suspicious_ips = set(suspicious_ips + high_frequency_ips)
-
-    for ip_address in all_suspicious_ips:
-        if ip_address != server_ip:
-            block_device(ip_address)
-        else:
-            print(f"Omitiendo el bloqueo de la IP del servidor: {ip_address}")
+    # Devolver las IPs sospechosas detectadas por alta frecuencia de eventos
+    return suspicious_ips
 
 # Llamar a esta función periódicamente
-def periodic_ip_check(interval=30): # Cada 30 segundos
+def periodic_ip_check(interval=30):  # Cada 30 segundos
     while True:
-        analyze_and_block_suspicious_ips()
+        suspicious_ips = analyze_and_block_suspicious_ips()
+        if suspicious_ips:
+            # Si hay IPs sospechosas, mostrar notificación emergente
+            for ip in suspicious_ips:
+                # Devolver las IPs sospechosas al frontend para que el usuario decida si bloquearlas
+                yield f"data: {ip}\n\n"
         time.sleep(interval)
 
 # Iniciar el chequeo periódico en un hilo separado
-thread = threading.Thread(target=periodic_ip_check)
+thread = threading.Thread(target=periodic_ip_check, daemon=True)
 thread.start()
 
+# Ruta para obtener los eventos como JSON para actualizar la tabla sin recargar la página
+@app.route('/get_events')
+def get_events():
+    page = request.args.get('page', 1, type=int)
+    events = get_system_events(page=page)
+    return jsonify({'events': events})
+
 # Conectar a la base de datos y obtener los eventos del sistema con o sin filtro de búsqueda
+# Función para obtener los eventos del sistema
 def get_system_events(search_term=None, page=1, per_page=100):
     offset = (page - 1) * per_page
     connection = mysql.connector.connect(**db_config)
@@ -136,7 +92,6 @@ def get_system_events(search_term=None, page=1, per_page=100):
 
 # Función para bloquear una dirección IP
 def block_device(ip_address):
-    print(f"Intentando bloquear IP: {ip_address}")
     try:
         command = f"sudo iptables -A INPUT -s {ip_address} -j DROP"
         subprocess.run(command, shell=True, check=True)
@@ -148,7 +103,6 @@ def block_device(ip_address):
         connection.commit()
         cursor.close()
         connection.close()
-        print(f"Bloqueada IP: {ip_address}")
     except subprocess.CalledProcessError as e:
         print(f"Error al ejecutar el comando iptables: {e}")
 
@@ -165,7 +119,6 @@ def unblock_device(ip_address):
         connection.commit()
         cursor.close()
         connection.close()
-        print(f"IP desbloqueada: {ip_address}")
     except subprocess.CalledProcessError as e:
         print(f"Error al desbloquear la IP: {e}")
 
@@ -180,60 +133,10 @@ def get_blocked_devices():
     connection.close()
     return results
 
-# Obtener estadísticas de eventos por hora
-def get_events_per_hour():
-    connection = mysql.connector.connect(**db_config)
-    query = """
-        SELECT HOUR(ReceivedAt) as hour, COUNT(*) as count
-        FROM SystemEvents
-        GROUP BY HOUR(ReceivedAt)
-        ORDER BY hour;
-    """
-    cursor = connection.cursor(dictionary=True)
-    cursor.execute(query)
-    results = cursor.fetchall()
-    cursor.close()
-    connection.close()
-    return results
-
-# Obtener top IPs sospechosas
-def get_top_suspicious_ips():
-    connection = mysql.connector.connect(**db_config)
-    query = """
-        SELECT FromHost as ip, COUNT(*) as count
-        FROM SystemEvents
-        GROUP BY FromHost
-        ORDER BY count DESC
-        LIMIT 10;
-    """
-    cursor = connection.cursor(dictionary=True)
-    cursor.execute(query)
-    results = cursor.fetchall()
-    cursor.close()
-    connection.close()
-    return results
-
 # Ruta para el dashboard
 @app.route('/dashboard')
 def dashboard():
-    # Obtener datos para el gráfico de eventos por hora
-    events_per_hour = get_events_per_hour()
-    events_per_hour_labels = [event['hour'] for event in events_per_hour]
-    events_per_hour_counts = [event['count'] for event in events_per_hour]
-    
-    # Obtener datos para el gráfico de top IPs sospechosas
-    top_ips = get_top_suspicious_ips()
-    top_ips_labels = [ip['ip'] for ip in top_ips]
-    top_ips_counts = [ip['count'] for ip in top_ips]
-    
-    return render_template(
-        'dashboard.html',
-        events_per_hour=events_per_hour_labels,
-        events_count=events_per_hour_counts,
-        top_ips=top_ips_labels,
-        top_ips_count=top_ips_counts
-    )
-
+    return render_template('dashboard.html')
 
 # Ruta principal para mostrar eventos del sistema
 @app.route('/')
@@ -243,18 +146,25 @@ def index():
     events = get_system_events(search_term, page)
     return render_template('index.html', events=events, page=page, search_term=search_term)
 
-# Ruta para mostrar dispositivos bloqueados
-@app.route('/blocked_devices')
-def blocked_devices():
-    devices = get_blocked_devices()
-    return render_template('blockedDevices.html', devices=devices)
-
 # Ruta para manejar el desbloqueo de dispositivos
 @app.route('/unblock_device', methods=['POST'])
 def unblock():
     ip_address = request.form.get('ip_address')
     unblock_device(ip_address)
     return redirect(url_for('blocked_devices'))
+
+# Ruta para manejar el bloqueo de dispositivos
+@app.route('/block_device', methods=['POST'])
+def block():
+    ip_address = request.form.get('ip_address')
+    block_device(ip_address)
+    return redirect(url_for('blocked_devices'))
+
+# Ruta para mostrar dispositivos bloqueados
+@app.route('/blocked_devices')
+def blocked_devices():
+    devices = get_blocked_devices()
+    return render_template('blockedDevices.html', devices=devices)
 
 # Generar reporte en formato PDF
 @app.route('/report_pdf')
@@ -281,5 +191,17 @@ def add_host_route():
         return render_template('add_host_result.html', result=result)
     return render_template('add_host.html')
 
+# Ruta para enviar las IPs sospechosas en tiempo real
+@app.route('/periodic_ip_check')
+def periodic_ip_check_route():
+    def generate():
+        while True:
+            suspicious_ips = analyze_and_block_suspicious_ips()  # Obtén las IPs sospechosas
+            if suspicious_ips:
+                for ip in suspicious_ips:
+                    yield f"data: {ip}\n\n"  # Envía cada IP sospechosa
+            time.sleep(30)  # Espera 30 segundos antes de la próxima verificación
+    return Response(generate(), mimetype='text/event-stream')
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, threaded=True)
